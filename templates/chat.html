@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Общий чат</title>
+</head>
+<body>
+    <h2>Общий чат</h2>
+
+    <div id="chat-box" style="border:1px solid black; height:300px; overflow-y:scroll; padding:10px;">
+    </div>
+
+    <form method="POST" style="margin-top:10px;">
+        <input type="text" name="message" placeholder="Введите сообщение..." required style="width:70%;">
+        <button type="submit">Отправить</button>
+    </form>
+
+    <br>
+    <a href="{{ url_for('index') }}">На главную</a> |
+    <a href="{{ url_for('logout') }}">Выйти</a>
+
+    <br>
+<a href="{{ url_for('profile', username=current_user.username) }}">
+    Мой профиль
+</a>
+
+
+<script>
+function loadMessages() {
+    fetch("/get_messages")
+        .then(response => response.json())
+        .then(data => {
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML = "";
+
+            data.forEach(msg => {
+                chatBox.innerHTML += `
+                    <p>
+                        <strong>
+                        <a href="/profile/${msg.username}">
+                        ${msg.username}
+                        </a>
+                        </strong>:
+                        ${msg.text}
+                        <small style="color:gray;">(${msg.time})</small>
+                    </p>
+                `;
+            });
+
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+}
+
+// Загружаем сразу
+loadMessages();
+
+// Обновляем каждые 2 секунды
+setInterval(loadMessages, 2000);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Профиль {{ user.username }}</title>
+</head>
+<body>
+
+    <h2>Профиль: {{ user.username }}</h2>
+
+    <p><strong>ID:</strong> {{ user.id }}</p>
+    <p><strong>Сообщений в чате:</strong> {{ user.messages|length }}</p>
+
+    <hr>
+
+    <a href="{{ url_for('chat') }}">В чат</a> |
+    <a href="{{ url_for('profile', username=current_user.username) }}">
+        Мой профиль
+    </a> |
+    <a href="{{ url_for('logout') }}">Выйти</a>
+
+</body>
+</html>
