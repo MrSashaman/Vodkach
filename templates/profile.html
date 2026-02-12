@@ -2,8 +2,11 @@
 <html>
 <head>
     <title>Профиль {{ user.username }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+
+<div class="container">
 
     <h2>Профиль: {{ user.username }}</h2>
 
@@ -12,11 +15,70 @@
 
     <hr>
 
-    <a href="{{ url_for('chat') }}">В чат</a> |
-    <a href="{{ url_for('profile', username=current_user.username) }}">
-        Мой профиль
-    </a> |
-    <a href="{{ url_for('logout') }}">Выйти</a>
+    <div class="button-group">
+
+        {% if user.username != current_user.username %}
+            <a class="btn" href="{{ url_for('dialog', username=user.username) }}">
+                Написать сообщение
+            </a>
+        {% endif %}
+
+        <a class="btn" href="{{ url_for('chat') }}">
+            В общий чат
+        </a>
+
+        <a class="btn" href="{{ url_for('profile', username=current_user.username) }}">
+            Мой профиль
+        </a>
+
+        <a class="btn danger" href="{{ url_for('logout') }}">
+            Выйти
+        </a>
+
+
+        <div style="text-align:center; margin-bottom:20px;">
+
+    {% if user.avatar %}
+        <img src="{{ url_for('static', filename='avatars/' + user.avatar) }}"
+             width="120" height="120"
+             style="border-radius:50%; object-fit:cover;">
+    {% else %}
+        <img src="{{ url_for('static', filename='avatars/default_avatar.png') }}"
+             width="120" height="120"
+             style="border-radius:50%; object-fit:cover;">
+    {% endif %}
+
+</div>
+
+        {% if user.username == current_user.username %}
+    <form action="{{ url_for('upload_avatar') }}"
+          method="POST"
+          enctype="multipart/form-data"
+          style="text-align:center; margin-bottom:20px;">
+
+        <input type="file" name="avatar" required>
+        <button type="submit">Сменить аватар</button>
+    </form>
+{% endif %}
+
+    <p><strong>Описание:</strong></p>
+
+    {% if user.bio %}
+        <p>{{ user.bio }}</p>
+    {% else %}
+        <p>Пользователь пока ничего не написал.</p>
+    {% endif %}
+
+    {% if user.username == current_user.username %}
+        <form action="{{ url_for('update_bio') }}" method="POST">
+            <textarea name="bio" rows="3" placeholder="Напишите о себе...">{{ user.bio }}</textarea>
+            <button type="submit">Сохранить описание</button>
+        </form>
+    {% endif %}
+
+    </div>
+
+</div>
 
 </body>
 </html>
