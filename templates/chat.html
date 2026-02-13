@@ -6,73 +6,255 @@
     <h2># Общий чат</h2>
 </div>
 
-<div id="chat-box" class="chat-box"></div>
+<div id="chat-box" class="chat-box">
 
-<form method="POST" class="chat-form">
-    <input type="text" name="message"
+    {% for msg in messages %}
+    <div class="chat-message" data-id="{{ msg.id }}">
+        <div class="message-wrapper">
+
+            <img class="mini-avatar"
+                 src="{{ url_for('static', filename='avatars/' + (msg.user.avatar if msg.user.avatar else 'default_avatar.png')) }}">
+
+            <div class="chat-content">
+                <strong>
+                    <a class="chat-username"
+                       href="{{ url_for('profile', username=msg.user.username) }}">
+                        {{ msg.user.username }}
+                    </a>
+
+                    {% if msg.user.is_verified %}
+                        <span style="color:#5865f2;"> ✔</span>
+                    {% endif %}
+
+                    {% if msg.is_pinned %}
+                        <span class="pin-icon"> 📌</span>
+                    {% endif %}
+                </strong>
+
+                <div class="message-text">{{ msg.text }}</div>
+                <small>{{ msg.timestamp.strftime("%H:%M") }}</small>
+            </div>
+
+            <!-- КНОПКА -->
+            <button class="action-btn"
+                    type="button"
+                    onclick="togglePanel(this, event)">
+                ⚙
+            </button>
+
+            <!-- ПАНЕЛЬ -->
+            <div class="action-panel">
+                <button type="button"
+                        onclick="deleteMessage({{ msg.id }})">
+                    Удалить
+                </button>
+
+                <button type="button"
+                        onclick="pinMessage({{ msg.id }})">
+                    Закрепить
+                </button>
+
+                <button type="button"
+                        onclick="copyMessage(this)">
+                    Скопировать
+                </button>
+            </div>
+
+        </div>
+    </div>
+    {% endfor %}
+
+</div>
+
+<form class="chat-form" onsubmit="sendMessage(event)">
+    <input type="text"
+           id="message-input"
            placeholder="Написать сообщение..."
            autocomplete="off"
            required>
     <button type="submit">Отправить</button>
 </form>
 
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
 <script>
-let lastMessageCount = 0;
+const socket = io();
+const chatBox = document.getElementById("chat-box");
 
-function loadMessages() {
-    fetch("/get_messages")
-        .then(response => response.json())
-        .then(data => {
+socket.emit("join_global");
 
-            const chatBox = document.getElementById("chat-box");
+/* ================= RECEIVE ================= */
 
-            const isAtBottom =
-                chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 5;
+socket.on("receive_global_message", function(msg){
 
-            // Если сообщений стало больше — добавляем только новые
-            if (data.length > lastMessageCount) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "chat-message";
+    wrapper.setAttribute("data-id", msg.id);
 
-                for (let i = lastMessageCount; i < data.length; i++) {
-                    const msg = data[i];
+    const messageWrapper = document.createElement("div");
+    messageWrapper.className = "message-wrapper";
 
-                    const messageHTML = `
-                        <div class="chat-message">
+    const avatar = document.createElement("img");
+    avatar.className = "mini-avatar";
+    avatar.src = msg.avatar_url;
 
-                            <img class="mini-avatar"
-                                 src="${msg.avatar_url}">
+    const content = document.createElement("div");
+    content.className = "chat-content";
 
-                            <div class="chat-content">
-                                <strong>
-                                    <a class="chat-username"
-                                       href="/profile/${msg.username}">
-                                       ${msg.username}
-                                    </a>
-                                </strong>
-                                <div>${msg.text}</div>
-                                <small>(${msg.time})</small>
-                            </div>
+    const strong = document.createElement("strong");
 
-                        </div>
-                    `;
+    const link = document.createElement("a");
+    link.className = "chat-username";
+    link.href = `/profile/${msg.username}`;
+    link.textContent = msg.username;
 
-                    chatBox.insertAdjacentHTML("beforeend", messageHTML);
-                }
+    strong.appendChild(link);
 
-                if (isAtBottom) {
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                }
+    if(msg.is_verified){
+        const verified = document.createElement("span");
+        verified.style.color = "#5865f2";
+        verified.textContent = " ✔";
+        strong.appendChild(verified);
+    }
 
-                lastMessageCount = data.length;
-            }
-        });
+    if(msg.is_pinned){
+        const pin = document.createElement("span");
+        pin.className = "pin-icon";
+        pin.textContent = " 📌";
+        strong.appendChild(pin);
+    }
+
+    const text = document.createElement("div");
+    text.className = "message-text";
+    text.textContent = msg.text;
+
+    const time = document.createElement("small");
+    time.textContent = `(${msg.time})`;
+
+    content.appendChild(strong);
+    content.appendChild(text);
+    content.appendChild(time);
+
+    const actionBtn = document.createElement("button");
+    actionBtn.className = "action-btn";
+    actionBtn.type = "button";
+    actionBtn.textContent = "⚙";
+    actionBtn.onclick = function(e){
+        togglePanel(actionBtn, e);
+    };
+
+    const panel = document.createElement("div");
+    panel.className = "action-panel";
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.textContent = "Удалить";
+    del.onclick = () => deleteMessage(msg.id);
+
+    const pinBtn = document.createElement("button");
+    pinBtn.type = "button";
+    pinBtn.textContent = "Закрепить";
+    pinBtn.onclick = () => pinMessage(msg.id);
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "Скопировать";
+    copy.onclick = () => navigator.clipboard.writeText(msg.text);
+
+    panel.appendChild(del);
+    panel.appendChild(pinBtn);
+    panel.appendChild(copy);
+
+    messageWrapper.appendChild(avatar);
+    messageWrapper.appendChild(content);
+    messageWrapper.appendChild(actionBtn);
+    messageWrapper.appendChild(panel);
+
+    wrapper.appendChild(messageWrapper);
+    chatBox.appendChild(wrapper);
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
+
+/* ================= PANEL ================= */
+
+function togglePanel(btn, event){
+    event.stopPropagation();
+
+    const panel = btn.parentElement.querySelector(".action-panel");
+    const isVisible = panel.style.display === "block";
+
+    document.querySelectorAll(".action-panel")
+        .forEach(p => p.style.display = "none");
+
+    if(!isVisible){
+        panel.style.display = "block";
+    }
 }
 
-// Первая загрузка
-loadMessages();
+document.addEventListener("click", function(e){
+    if(!e.target.closest(".action-panel") &&
+       !e.target.closest(".action-btn")){
+        document.querySelectorAll(".action-panel")
+            .forEach(p => p.style.display = "none");
+    }
+});
 
-// Обновление
-setInterval(loadMessages, 2000);
+/* ================= DELETE ================= */
+
+function deleteMessage(id){
+    fetch(`/delete_message/${id}`, { method: "POST" });
+}
+
+socket.on("message_deleted", function(data){
+    const el = document.querySelector(`[data-id="${data.id}"]`);
+    if(el) el.remove();
+});
+
+/* ================= PIN ================= */
+
+function pinMessage(id){
+    fetch(`/pin_message/${id}`, { method: "POST" });
+}
+
+socket.on("message_pinned", function(data){
+    const el = document.querySelector(`[data-id="${data.id}"]`);
+    if(!el) return;
+
+    const strong = el.querySelector("strong");
+
+    if(data.pinned){
+        if(!el.querySelector(".pin-icon")){
+            const pin = document.createElement("span");
+            pin.className = "pin-icon";
+            pin.textContent = " 📌";
+            strong.appendChild(pin);
+        }
+    } else {
+        const pin = el.querySelector(".pin-icon");
+        if(pin) pin.remove();
+    }
+});
+
+/* ================= SEND ================= */
+
+function sendMessage(event){
+    event.preventDefault();
+
+    const input = document.getElementById("message-input");
+    const text = input.value.trim();
+
+    if(text === "") return;
+
+    fetch(window.location.pathname, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `message=${encodeURIComponent(text)}`
+    });
+
+    input.value = "";
+}
+
 </script>
-
 
 {% endblock %}
