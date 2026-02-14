@@ -1,0 +1,22 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+<div class="container">
+    <h2>Мои диалоги</h2>
+
+    {% for user in users %}
+        <p>
+            <a href="{{ url_for('dialog', username=user.username) }}">
+                {{ user.username }}
+            </a>
+        </p>
+    {% else %}
+        <p>Пока нет диалогов</p>
+    {% endfor %}
+
+    <div class="nav">
+        <a href="{{ url_for('chat') }}">Общий чат</a>
+        <a href="{{ url_for('profile', username=current_user.username) }}">
+            Мой профиль
+        </a>
+    </div>
+</div>

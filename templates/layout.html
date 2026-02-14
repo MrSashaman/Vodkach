@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vodkach</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="app-layout">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+        <div class="sidebar-top">
+            <a class="sidebar-item"
+               href="{{ url_for('chat') }}">
+                # Общий чат
+            </a>
+
+            <a class="sidebar-item"
+   href="{{ url_for('shop') }}">
+    🛒 Магазин
+</a>
+
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Личные сообщения</div>
+
+                {% for user in dialog_users %}
+                    <a class="sidebar-item"
+                       href="{{ url_for('dialog', username=user.username) }}">
+                        {{ user.username }}
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Профиль снизу -->
+        <div class="sidebar-profile">
+
+            <div class="profile-left">
+                {% if current_user.avatar %}
+                    <img class="sidebar-avatar"
+                         src="{{ url_for('static', filename='avatars/' + current_user.avatar) }}">
+                {% else %}
+                    <img class="sidebar-avatar"
+                         src="{{ url_for('static', filename='avatars/default_avatar.png') }}">
+                {% endif %}
+
+                <a class="profile-name-link"
+                   href="{{ url_for('profile', username=current_user.username) }}">
+                    {{ current_user.username }}
+                </a>
+            </div>
+
+            <a class="logout-btn"
+               href="{{ url_for('logout') }}">
+                ⎋
+            </a>
+
+        </div>
+
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-area">
+        {% block content %}{% endblock %}
+    </div>
+
+</div>
+
+</body>
+</html>

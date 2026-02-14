@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Вы заблокированы</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body style="text-align:center; padding-top:100px;">
+
+<h1>🚫 Вы были заблокированы</h1>
+
+<p>
+Упс, похоже данный пользователь был заблокирован на нашем сайте :/
+</p>
+
+{% if current_user.ban_reason %}
+<p><strong>Причина:</strong> {{ current_user.ban_reason }}</p>
+{% endif %}
+
+<a href="{{ url_for('logout') }}">Выйти</a>
+
+</body>
+</html>

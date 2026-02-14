@@ -1,0 +1,100 @@
+<h2>Админ панель</h2>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+<!-- СОЗДАНИЕ БЕЙДЖА (вне таблицы) -->
+<h3>Создать бейдж</h3>
+<form method="POST" action="{{ url_for('create_badge') }}">
+    <input type="text" name="name" placeholder="Название (Юбилей)" required>
+    <input type="color" name="color" value="#5865f2">
+    <button type="submit">Создать</button>
+</form>
+
+<br>
+
+<table border="1" cellpadding="6">
+    <tr>
+        <th>ID</th>
+        <th>Username</th>
+        <th>Admin</th>
+        <th>Verified</th>
+        <th>Rank</th>
+        <th>Rank Action</th>
+        <th>Badges</th>
+        <th>Give Badge</th>
+        <th>Banned</th>
+        <th>Ban Action</th>
+        <th>Действия</th>
+    </tr>
+
+    {% for user in users %}
+    <tr>
+        <td>{{ user.id }}</td>
+        <td>{{ user.username }}</td>
+        <td>{{ user.is_admin }}</td>
+        <td>{{ user.is_verified }}</td>
+
+        <!-- РАНГ -->
+        <td>
+            {{ user.rank if user.rank else "—" }}
+        </td>
+
+        <td>
+            <a href="{{ url_for('set_rank', user_id=user.id, rank='WINE') }}">WINE</a> |
+            <a href="{{ url_for('set_rank', user_id=user.id, rank='LIQUOR') }}">LIQUOR</a> |
+            <a href="{{ url_for('set_rank', user_id=user.id, rank='none') }}">Снять</a>
+        </td>
+
+        <!-- ТЕКУЩИЕ БЕЙДЖИ -->
+        <td>
+            {% for badge in user.badges %}
+                <span style="background: {{ badge.color }};
+                             padding:4px 8px;
+                             border-radius:10px;
+                             color:white;
+                             font-size:12px;">
+                    {{ badge.name }}
+                </span>
+                <a href="{{ url_for('remove_badge', user_id=user.id, badge_id=badge.id) }}">✖</a>
+                <br>
+            {% endfor %}
+        </td>
+
+        <!-- ВЫДАТЬ БЕЙДЖ -->
+        <td>
+            {% for badge in badges %}
+                <a href="{{ url_for('give_badge', user_id=user.id, badge_id=badge.id) }}">
+                    {{ badge.name }}
+                </a><br>
+            {% endfor %}
+        </td>
+
+        <!-- БАН -->
+        <td>{{ user.is_banned }}</td>
+
+        <td>
+            {% if not user.is_banned %}
+            <form method="POST"
+                  action="{{ url_for('ban_user', user_id=user.id) }}">
+                <input type="text" name="reason" placeholder="Причина">
+                <button type="submit">Забанить</button>
+            </form>
+            {% else %}
+                <a href="{{ url_for('unban_user', user_id=user.id) }}">
+                    Разбанить
+                </a>
+            {% endif %}
+        </td>
+
+        <!-- ДРУГИЕ ДЕЙСТВИЯ -->
+        <td>
+            <a href="{{ url_for('toggle_admin', user_id=user.id) }}">
+                Admin
+            </a> |
+            <a href="{{ url_for('toggle_verified', user_id=user.id) }}">
+                Verified
+            </a>
+        </td>
+
+    </tr>
+    {% endfor %}
+</table>

@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="chat-header">
+    <h2>@ {{ other_user.username }}</h2>
+</div>
+
+<div id="chat-box" class="chat-box">
+
+    {% for msg in messages %}
+    <div class="chat-message">
+        <img class="mini-avatar"
+             src="{{ url_for('static', filename='avatars/' + (msg.sender.avatar if msg.sender.avatar else 'default_avatar.png')) }}">
+
+        <div class="chat-content">
+            <strong>
+                <a class="chat-username"
+                   href="{{ url_for('profile', username=msg.sender.username) }}">
+                    {{ msg.sender.username }}
+                </a>
+                {% if msg.sender.is_verified %}
+                    <span style="color:#5865f2;">✔</span>
+                {% endif %}
+            </strong>
+            <div>{{ msg.text }}</div>
+            <small>{{ msg.timestamp.strftime("%H:%M") }}</small>
+        </div>
+    </div>
+    {% endfor %}
+
+</div>
+
+{% if not blocked %}
+<form class="chat-form" onsubmit="sendMessage(event)">
+    <input type="text"
+           id="message-input"
+           placeholder="Написать сообщение..."
+           autocomplete="off"
+           required>
+    <button type="submit">Отправить</button>
+</form>
+{% else %}
+    <div class="blocked-message">
+        Сообщения заблокированы.
+    </div>
+{% endif %}
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+<script>
+const socket = io();
+
+const currentUserId = "{{ current_user.id }}";
+const otherUserId = "{{ other_user.id }}";
+
+const room = `private_${Math.min(currentUserId, otherUserId)}_${Math.max(currentUserId, otherUserId)}`;
+
+socket.emit("join_private", { room: room });
+
+socket.on("receive_private_message", function(msg) {
+
+    const chatBox = document.getElementById("chat-box");
+
+    const messageHTML = `
+        <div class="chat-message">
+            <img class="mini-avatar"
+                 src="${msg.avatar_url}">
+            <div class="chat-content">
+                <strong>
+                    <a class="chat-username"
+                       href="/profile/${msg.username}">
+                       ${msg.username}
+                    </a>
+                    ${msg.is_verified ? '<span style="color:#5865f2;">✔</span>' : ''}
+                </strong>
+                <div>${msg.text}</div>
+                <small>(${msg.time})</small>
+            </div>
+        </div>
+    `;
+
+    chatBox.insertAdjacentHTML("beforeend", messageHTML);
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
+
+function sendMessage(event) {
+    event.preventDefault();
+
+    const input = document.getElementById("message-input");
+    const text = input.value.trim();
+
+    if (text === "") return;
+
+    fetch(window.location.pathname, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: `message=${encodeURIComponent(text)}`
+    });
+
+    input.value = "";
+}
+</script>
+
+{% endblock %}

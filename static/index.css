@@ -1,0 +1,110 @@
+/* =========================
+   LANDING PAGE STYLE
+========================= */
+
+body{
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #1e1f22, #313338);
+  color: white;
+  min-height: 100vh;
+}
+
+/* ===== HERO ===== */
+
+.landing{
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 80px 20px;
+}
+
+.hero{
+  text-align: center;
+  margin-bottom: 100px;
+}
+
+.hero h1{
+  font-size: 64px;
+  margin-bottom: 15px;
+}
+
+.hero-subtitle{
+  font-size: 20px;
+  opacity: 0.85;
+  margin-bottom: 40px;
+}
+
+.hero-buttons{
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.hero-btn{
+  padding: 14px 28px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: 0.2s;
+  font-size: 16px;
+}
+
+.hero-btn.primary{
+  background: #5865f2;
+  color: white;
+}
+
+.hero-btn.primary:hover{
+  background: #4752c4;
+}
+
+.hero-btn.secondary{
+  background: #3f4147;
+  color: white;
+}
+
+.hero-btn.secondary:hover{
+  background: #4e5058;
+}
+
+/* ===== SECTIONS ===== */
+
+.section{
+  margin-top: 60px;
+  text-align: center;
+}
+
+.section h2{
+  font-size: 32px;
+  margin-bottom: 20px;
+}
+
+/* ===== FEATURES ===== */
+
+.features-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 25px;
+  margin-top: 30px;
+}
+
+.feature-card{
+  background: #2b2d31;
+  padding: 25px;
+  border-radius: 14px;
+  transition: 0.2s;
+}
+
+.feature-card:hover{
+  transform: translateY(-4px);
+  background: #32343a;
+}
+
+/* ===== FOOTER ===== */
+
+.footer{
+  margin-top: 120px;
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.6;
+}

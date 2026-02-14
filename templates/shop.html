@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="shop-header">
+    <h2>Магазин рангов</h2>
+</div>
+
+<div class="shop-grid">
+
+    <!-- КОЛОНКА 1 -->
+    <div class="shop-column">
+
+        <div class="rank-card wine">
+            <div class="rank-title">WINE</div>
+            <div class="rank-description">
+                <div>✦ Цветной ник</div>
+                <div>✦ Значок 🍷</div>
+                <div>✦ Выделение в списке</div>
+            </div>
+            <div class="rank-price">100 ₽</div>
+            <button class="buy-btn"
+                    onclick="openBuyModal('WINE', 100)">
+                Купить
+            </button>
+        </div>
+
+    </div>
+
+    <!-- КОЛОНКА 2 -->
+    <div class="shop-column">
+
+        <div class="rank-card liquor">
+            <div class="rank-title">LIQUOR</div>
+            <div class="rank-description">
+                <div>✦ Гандонское прозвище</div>
+                <div>✦ Резиновый хуй</div>
+                <div>✦ Выделения на трусиках</div>
+            </div>
+            <div class="rank-price">9999999 ₽</div>
+            <button class="buy-btn"
+                    onclick="openBuyModal('LIQUOR', 250)">
+                Купить
+            </button>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО -->
+<div id="buy-modal" class="modal">
+    <div class="modal-content">
+        <h3 id="modal-rank"></h3>
+        <p>Стоимость: <span id="modal-price"></span> ₽</p>
+
+        <button class="confirm-btn">
+            Подтвердить покупку
+        </button>
+
+        <button class="cancel-btn"
+                onclick="closeModal()">
+            Отмена
+        </button>
+    </div>
+</div>
+
+<script>
+function openBuyModal(rank, price){
+    document.getElementById("modal-rank").innerText = rank;
+    document.getElementById("modal-price").innerText = price;
+    document.getElementById("buy-modal").style.display = "flex";
+}
+
+function closeModal(){
+    document.getElementById("buy-modal").style.display = "none";
+}
+</script>
+
+{% endblock %}
