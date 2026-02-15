@@ -16,6 +16,73 @@ class Badge(db.Model):
     name = db.Column(db.String(100), unique=True)
     color = db.Column(db.String(20), default="#5865f2")
 
+
+server_members = db.Table(
+    'server_members',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('server_id', db.Integer, db.ForeignKey('server.id'))
+)
+
+class Server(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    avatar = db.Column(db.String(255), nullable=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+    members = db.relationship("User", secondary=server_members, backref="servers")
+
+
+class ServerMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    server_id = db.Column(db.Integer, db.ForeignKey('server.id'))
+
+    user = db.relationship("User")
+
+
+class ServerInvite(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    server_id = db.Column(db.Integer, db.ForeignKey('server.id'))
+    inviter_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    invited_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    server = db.relationship("Server")
+    inviter = db.relationship("User", foreign_keys=[inviter_id])
+    invited = db.relationship("User", foreign_keys=[invited_id])
+
+
+class Channel(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+
+    server_id = db.Column(db.Integer, db.ForeignKey('server.id'))
+    server = db.relationship("Server", backref="channels")
+
+
+class ChannelMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    channel_id = db.Column(db.Integer, db.ForeignKey('channel.id'))
+
+    user = db.relationship("User")
+    channel = db.relationship("Channel", backref="messages")
+
+class Reaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    emoji = db.Column(db.String(50))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    message_id = db.Column(db.Integer, db.ForeignKey('message.id'))
+
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -28,6 +95,7 @@ class User(UserMixin, db.Model):
     ban_reason = db.Column(db.String(255), nullable=True)
     rank = db.Column(db.String(20), default=None)
     badges = db.relationship("Badge", secondary=user_badges, backref="users")
+    status = db.Column(db.String(20), default="online")
 
     # --- НОВЫЕ ПОЛЯ ---
     marital_status = db.Column(db.String(50), nullable=True)  # Женат / Не женат
@@ -67,5 +135,6 @@ class PrivateMessage(db.Model):
 
     sender = db.relationship('User', foreign_keys=[sender_id])
     receiver = db.relationship('User', foreign_keys=[receiver_id])
+
 
 

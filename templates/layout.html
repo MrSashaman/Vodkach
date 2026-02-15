@@ -4,25 +4,49 @@
     <title>Vodkach</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
+
+
+
 <body>
 
 <div class="app-layout">
 
-    <!-- Sidebar -->
+    <!-- SIDEBAR -->
     <div class="sidebar">
 
         <div class="sidebar-top">
+
+            <!-- Магазин -->
+            <a class="sidebar-item"
+               href="{{ url_for('shop') }}">
+                🛒 Магазин
+            </a>
+
+            <!-- ПРИГЛАШЕНИЯ -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Приглашения</div>
+
+                {% for invite in current_user_invites %}
+                    <div class="invite-box">
+                        <strong>{{ invite.inviter.username }}</strong><br>
+                        | {{ invite.server.name }}
+
+                        <div class="invite-actions">
+                            <a href="{{ url_for('accept_invite', invite_id=invite.id) }}">Вступить</a>
+                            <a href="{{ url_for('decline_invite', invite_id=invite.id) }}">Отклонить</a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Общий чат -->
             <a class="sidebar-item"
                href="{{ url_for('chat') }}">
                 # Общий чат
             </a>
 
-            <a class="sidebar-item"
-   href="{{ url_for('shop') }}">
-    🛒 Магазин
-</a>
-
-
+            <!-- ЛС -->
             <div class="sidebar-section">
                 <div class="sidebar-title">Личные сообщения</div>
 
@@ -33,11 +57,62 @@
                     </a>
                 {% endfor %}
             </div>
+
+            <!-- СЕРВЕРЫ -->
+            <div class="sidebar-section">
+                <div class="sidebar-title">Серверы</div>
+
+                {% for server_item in current_user.servers %}
+
+                    <div class="server-block">
+
+                        <!-- Ссылка на сервер -->
+                        <a class="sidebar-server"
+                           href="{{ url_for('server_chat', server_id=server_item.id) }}">
+
+                            {% if server_item.avatar %}
+                                <img class="server-avatar"
+                                     src="{{ url_for('static', filename='servers/' + server_item.avatar) }}">
+                            {% else %}
+                                <div class="server-placeholder">
+                                    {{ server_item.name[0] }}
+                                </div>
+                            {% endif %}
+
+                            <span>{{ server_item.name }}</span>
+                        </a>
+
+                        <!-- Каналы отображаются только если мы внутри этого сервера -->
+                        {% if server is defined and server.id == server_item.id %}
+                            <div class="server-channels">
+
+                                {% for channel in server_item.channels %}
+                                    <a class="sidebar-channel"
+                                       href="{{ url_for('channel_chat',
+                                                        channel_id=channel.id) }}">
+                                        # {{ channel.name }}
+                                    </a>
+                                {% endfor %}
+
+                            </div>
+                        {% endif %}
+
+                    </div>
+
+                {% endfor %}
+
+                <!-- Создать сервер -->
+                <a class="sidebar-item"
+                   href="{{ url_for('create_server') }}">
+                    ➕ Создать сервер
+                </a>
+
+            </div>
+
         </div>
 
         <!-- Профиль снизу -->
         <div class="sidebar-profile">
-
             <div class="profile-left">
                 {% if current_user.avatar %}
                     <img class="sidebar-avatar"
@@ -57,17 +132,72 @@
                href="{{ url_for('logout') }}">
                 ⎋
             </a>
-
         </div>
 
     </div>
+    <!-- END SIDEBAR -->
 
-    <!-- Chat Area -->
+
+    <!-- CHAT AREA -->
     <div class="chat-area">
         {% block content %}{% endblock %}
     </div>
 
+
+    <!-- MEMBERS PANEL -->
+    {% if server is defined %}
+    <div class="members-panel">
+        <div class="members-title">Участники</div>
+
+        {% for member in server.members %}
+            <div class="member-item">
+                <span>{{ member.username }}</span>
+
+                {% if current_user.id == server.owner_id
+                      and member.id != server.owner_id %}
+                    <a class="kick-btn"
+                       href="{{ url_for('kick_user',
+                                        server_id=server.id,
+                                        user_id=member.id) }}">
+                        ✖
+                    </a>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
 </div>
+
+
+<!-- EMOJI BUTTON -->
+
+<!-- EMOJI PANEL -->
+
+
+
+
+
+<script>
+function toggleEmojiPanel() {
+    const panel = document.getElementById("emojiPanel");
+    panel.style.display = panel.style.display === "block" ? "none" : "block";
+}
+
+function insertEmoji(filename) {
+
+    const input =
+        document.querySelector("input[name='message']") ||
+        document.getElementById("message-input");
+
+    if (!input) return;
+
+    input.value += ` :emoji:${filename}: `;
+    input.focus();
+}
+</script>
+
+
 
 </body>
 </html>

@@ -10,8 +10,13 @@ import os
 from werkzeug.utils import secure_filename
 from models import Block
 from flask_socketio import SocketIO, emit, join_room
-from models import db, User, Message, PrivateMessage, Block, Badge
+from models import db, User, Message, PrivateMessage, Block, Badge, Server, ServerMessage, ServerInvite, Channel, ChannelMessage, Reaction
 
+from flask_socketio import join_room, leave_room, emit
+import re
+import os
+import re
+from markupsafe import Markup
 
 
 app = Flask(__name__)
@@ -33,6 +38,47 @@ os.makedirs(app.config['AVATAR_FOLDER'], exist_ok=True)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 
+def format_message(text):
+    return parse_emojis(text)
+
+
+
+def parse_emojis(text):
+    pattern = r":emoji:(.*?):"
+
+    def replace(match):
+        filename = match.group(1)
+
+        if filename not in get_emojis():
+            return ""
+
+        return f'<img src="/static/emojis/{filename}" class="chat-emoji">'
+
+    return Markup(re.sub(pattern, replace, text))
+
+
+
+
+def get_emojis():
+    emoji_folder = os.path.join("static", "emojis")
+
+    if not os.path.exists(emoji_folder):
+        return []
+
+    files = [
+        f for f in os.listdir(emoji_folder)
+        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+    ]
+
+    return sorted(files)
+
+
+
+@app.context_processor
+def inject_emojis():
+    return dict(all_emojis=get_emojis())
+
+
 @socketio.on('join_private')
 def handle_join_private(data):
     room = data['room']
@@ -41,6 +87,152 @@ def handle_join_private(data):
 @socketio.on('join_global')
 def handle_join_global():
     join_room("global_chat")
+
+
+@socketio.on('join_server')
+def handle_join_server(data):
+    server_id = data['server_id']
+    join_room(f"server_{server_id}")
+
+@app.route('/set_status', methods=['POST'])
+@login_required
+def set_status():
+    status = request.form.get("status")
+
+    if status not in ["online", "dnd", "invisible"]:
+        return "", 400
+
+    current_user.status = status
+    db.session.commit()
+
+    socketio.emit("status_updated", {
+        "user_id": current_user.id,
+        "status": status
+    })
+
+    return "", 204
+
+
+
+@socketio.on('join_channel')
+def handle_join_channel(data):
+    channel_id = data['channel_id']
+    join_room(f"channel_{channel_id}")
+
+
+@socketio.on('send_channel_message')
+def handle_channel_message(data):
+
+    if not current_user.is_authenticated:
+        return
+
+    channel_id = data['channel_id']
+    text = data['text']
+
+    channel = Channel.query.get(channel_id)
+
+    if not channel:
+        return
+
+    if current_user not in channel.server.members:
+        return
+
+    msg = ChannelMessage(
+        text=text,
+        user_id=current_user.id,
+        channel_id=channel_id
+    )
+
+    db.session.add(msg)
+    db.session.commit()
+
+    emit('receive_channel_message', {
+        "username": current_user.username,
+        "text": parse_emojis(text),
+        "time": msg.timestamp.strftime("%H:%M"),
+        "avatar": current_user.avatar
+    }, room=f"channel_{channel_id}")
+
+
+
+@app.context_processor
+def inject_invites():
+    if current_user.is_authenticated:
+        invites = ServerInvite.query.filter_by(
+            invited_id=current_user.id
+        ).all()
+    else:
+        invites = []
+
+    return dict(current_user_invites=invites)
+
+
+
+@app.route("/invite/<int:invite_id>/accept")
+@login_required
+def accept_invite(invite_id):
+
+    invite = ServerInvite.query.get_or_404(invite_id)
+
+    if invite.invited_id != current_user.id:
+        return "Нет доступа", 403
+
+    server = invite.server
+
+    if current_user not in server.members:
+        server.members.append(current_user)
+
+    db.session.delete(invite)
+    db.session.commit()
+
+    return redirect(url_for("server_chat", server_id=server.id))
+
+
+
+@app.route("/invite/<int:invite_id>/decline")
+@login_required
+def decline_invite(invite_id):
+
+    invite = ServerInvite.query.get_or_404(invite_id)
+
+    if invite.invited_id != current_user.id:
+        return "Нет доступа", 403
+
+    db.session.delete(invite)
+    db.session.commit()
+
+    return redirect(url_for("chat"))
+
+
+@socketio.on('send_server_message')
+def handle_server_message(data):
+
+    server_id = data['server_id']
+    text = data['text']
+
+    if not current_user.is_authenticated:
+        return
+
+    server = Server.query.get(server_id)
+
+    if current_user not in server.members:
+        return
+
+    msg = ServerMessage(
+        text=text,
+        user_id=current_user.id,
+        server_id=server_id
+    )
+
+    db.session.add(msg)
+    db.session.commit()
+
+    emit('receive_server_message', {
+        "username": current_user.username,
+        "text": parse_emojis(text),
+        "time": msg.timestamp.strftime("%H:%M"),
+        "avatar": current_user.avatar
+    }, room=f"server_{server_id}")
 
 
 @login_manager.user_loader
@@ -54,6 +246,313 @@ def update_bio():
     current_user.bio = bio
     db.session.commit()
     return redirect(url_for('profile', username=current_user.username))
+
+
+
+@app.route('/create_server', methods=['GET', 'POST'])
+@login_required
+def create_server():
+    if request.method == 'POST':
+        name = request.form.get("name")
+        file = request.files.get("avatar")
+
+        limit = 10
+
+        if current_user.rank == "WINE":
+            limit = 20
+        elif current_user.rank == "LIQUOR":
+            limit = 30
+
+        if len(current_user.servers) >= limit:
+            return "Лимит серверов достигнут", 403
+
+        avatar_filename = None
+        if file and file.filename != "":
+            filename = secure_filename(file.filename)
+            filepath = os.path.join("static/servers", filename)
+            os.makedirs("static/servers", exist_ok=True)
+            file.save(filepath)
+            avatar_filename = filename
+
+        server = Server(
+            name=name,
+            avatar=avatar_filename,
+            owner_id=current_user.id
+        )
+
+        server.members.append(current_user)
+        db.session.add(server)
+        db.session.commit()
+
+        # создаём канал general
+        general = Channel(name="general", server_id=server.id)
+        db.session.add(general)
+        db.session.commit()
+
+        return redirect(url_for('server_chat', server_id=server.id))
+
+    return render_template("create_server.html")
+
+
+@app.route('/channel/<int:channel_id>')
+@login_required
+def channel_chat(channel_id):
+
+    channel = Channel.query.get_or_404(channel_id)
+    server = channel.server
+
+    if current_user not in server.members:
+        return "Нет доступа", 403
+
+    messages = ChannelMessage.query.filter_by(
+        channel_id=channel.id
+    ).order_by(ChannelMessage.timestamp.asc()).all()
+
+    return render_template(
+        "channel_chat.html",
+        channel=channel,
+        server=server,
+        messages=messages,
+        dialog_users=get_dialog_users()
+    )
+
+
+@app.route("/server/<int:server_id>/kick/<int:user_id>")
+@login_required
+def kick_user(server_id, user_id):
+
+    server = Server.query.get_or_404(server_id)
+
+    if current_user.id != server.owner_id:
+        return "Нет прав", 403
+
+    user = User.query.get_or_404(user_id)
+
+    if user in server.members:
+        server.members.remove(user)
+        db.session.commit()
+
+    return redirect(url_for("server_chat", server_id=server.id))
+
+
+
+
+@app.route("/server/<int:server_id>/create_channel", methods=["POST"])
+@login_required
+def create_channel(server_id):
+
+    server = Server.query.get_or_404(server_id)
+
+    if current_user.id != server.owner_id:
+        return "Нет прав", 403
+
+    name = request.form.get("name")
+
+    if not name:
+        return redirect(url_for("server_chat", server_id=server.id))
+
+    channel = Channel(
+        name=name,
+        server_id=server.id
+    )
+
+    db.session.add(channel)
+    db.session.commit()
+
+    return redirect(url_for("server_chat", server_id=server.id))
+
+
+@app.route('/server/<int:server_id>', methods=['GET', 'POST'])
+@login_required
+def server_chat(server_id):
+
+    server = Server.query.get_or_404(server_id)
+
+    if current_user not in server.members:
+        return "Нет доступа", 403
+
+    if request.method == "POST":
+        text = request.form.get("message")
+
+        if text:
+            msg = ServerMessage(
+                text=text,
+                user_id=current_user.id,
+                server_id=server.id
+            )
+            db.session.add(msg)
+            db.session.commit()
+
+        return "", 204
+
+    messages = ServerMessage.query.filter_by(
+        server_id=server.id
+    ).order_by(ServerMessage.timestamp.asc()).all()
+
+    return render_template(
+        "server_chat.html",
+        server=server,
+        messages=messages,
+        dialog_users=get_dialog_users()
+    )
+
+
+
+@app.route('/unblock/<username>')
+@login_required
+def unblock_user(username):
+    other_user = User.query.filter_by(username=username).first_or_404()
+
+    block = Block.query.filter_by(
+        blocker_id=current_user.id,
+        blocked_id=other_user.id
+    ).first()
+
+    if block:
+        db.session.delete(block)
+        db.session.commit()
+
+    return redirect(url_for('dialog', username=username))
+
+
+
+@app.route('/edit_message/<int:message_id>', methods=['POST'])
+@login_required
+def edit_message(message_id):
+    message = Message.query.get_or_404(message_id)
+
+    if message.user_id != current_user.id and not current_user.is_admin:
+        return "", 403
+
+    new_text = request.form.get("text")
+
+    if not new_text or new_text.strip() == "":
+        return "", 400
+
+    message.text = new_text
+    db.session.commit()
+
+    socketio.emit('message_edited', {
+        "id": message.id,
+        "text": parse_emojis(new_text)
+    }, room="global_chat")
+
+    return "", 204
+
+
+
+@app.route('/react/<int:message_id>', methods=['POST'])
+@login_required
+def react(message_id):
+
+    message = Message.query.get_or_404(message_id)
+    emoji = request.form.get("emoji")
+
+    if not emoji:
+        return "", 400
+
+    # Проверяем — есть ли уже такая реакция от пользователя
+    existing = Reaction.query.filter_by(
+        user_id=current_user.id,
+        message_id=message_id,
+        emoji=emoji
+    ).first()
+
+    # Если есть — удаляем (toggle)
+    if existing:
+        db.session.delete(existing)
+    else:
+        new_reaction = Reaction(
+            emoji=emoji,
+            user_id=current_user.id,
+            message_id=message_id
+        )
+        db.session.add(new_reaction)
+
+    db.session.commit()
+
+    # ---- Считаем реакции ----
+    reactions = Reaction.query.filter_by(
+        message_id=message_id
+    ).all()
+
+    counts = {}
+    user_reacted = {}
+
+    for r in reactions:
+        counts[r.emoji] = counts.get(r.emoji, 0) + 1
+
+        # Отмечаем какие реакции поставил текущий пользователь
+        if r.user_id == current_user.id:
+            user_reacted[r.emoji] = True
+
+    # ---- Отправляем обновление ----
+    socketio.emit("reaction_updated", {
+        "message_id": message_id,
+        "reactions": counts,
+        "user_reacted": user_reacted
+    }, room="global_chat")
+
+    return "", 204
+
+
+
+@app.route('/invite/<int:server_id>/<username>')
+@login_required
+def invite_user(server_id, username):
+
+    server = Server.query.get_or_404(server_id)
+
+    if server.owner_id != current_user.id:
+        return "Только владелец может приглашать", 403
+
+    user = User.query.filter_by(username=username).first_or_404()
+
+    if user not in server.members:
+        server.members.append(user)
+        db.session.commit()
+
+    return redirect(url_for('server_chat', server_id=server.id))
+
+
+
+
+@app.route("/server/<int:server_id>/invite", methods=["POST"])
+@login_required
+def send_invite(server_id):
+
+    server = Server.query.get_or_404(server_id)
+
+    if current_user.id != server.owner_id:
+        return "Нет прав", 403
+
+    username = request.form.get("username")
+    user = User.query.filter_by(username=username).first_or_404()
+
+    invite = ServerInvite(
+        server_id=server.id,
+        inviter_id=current_user.id,
+        invited_id=user.id
+    )
+
+    db.session.add(invite)
+    db.session.commit()
+
+    return redirect(url_for("server_chat", server_id=server.id))
+
+
+
+@app.route('/leave_server/<int:server_id>')
+@login_required
+def leave_server(server_id):
+
+    server = Server.query.get_or_404(server_id)
+
+    if current_user in server.members:
+        server.members.remove(current_user)
+        db.session.commit()
+
+    return redirect(url_for('chat'))
 
 
 @app.route('/admin/create_badge', methods=['POST'])
@@ -228,6 +727,12 @@ def admin_panel():
 
 
 
+
+@app.route('/agreement')
+def agree():
+    return render_template("agreement.html")
+
+
 @app.route('/admin/toggle_admin/<int:user_id>')
 @login_required
 def toggle_admin(user_id):
@@ -368,6 +873,9 @@ def index():
 def get_messages():
     messages = Message.query.order_by(Message.timestamp.asc()).all()
 
+    for m in messages:
+        m.text = parse_emojis(m.text)
+
     data = []
     for msg in messages:
         avatar = msg.user.avatar if msg.user.avatar and msg.user.avatar.strip() != "" else "default_avatar.png"
@@ -405,7 +913,7 @@ def chat():
             socketio.emit('receive_global_message', {
                 "id": new_message.id,  # ВАЖНО
                 "username": current_user.username,
-                "text": text,
+                "text": parse_emojis(text),
                 "time": new_message.timestamp.strftime("%H:%M"),
                 "avatar_url": url_for('static', filename='avatars/' + avatar),
                 "is_verified": current_user.is_verified,
@@ -512,7 +1020,7 @@ def dialog(username):
 
             socketio.emit('receive_private_message', {
                 "username": current_user.username,
-                "text": text,
+                "text": parse_emojis(text),
                 "time": new_message.timestamp.strftime("%H:%M"),
                 "avatar_url": url_for('static', filename='avatars/' + avatar),
                 "is_verified": current_user.is_verified

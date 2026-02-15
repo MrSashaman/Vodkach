@@ -12,190 +12,222 @@
 
     <div class="profile-name">
         Профиль: {{ user.username }}
+
+        <span class="status-badge
+            {% if user.status == 'online' %}status-online{% endif %}
+            {% if user.status == 'dnd' %}status-dnd{% endif %}
+            {% if user.status == 'invisible' %}status-invisible{% endif %}">
+
+            {% if user.status == "online" %}🟢 Online{% endif %}
+            {% if user.status == "dnd" %}🔴 Не беспокоить{% endif %}
+            {% if user.status == "invisible" %}⚫ Невидимка{% endif %}
+        </span>
     </div>
 
     <div class="profile-badges">
 
-    {% if user.is_verified %}
-        <span class="badge verified">✔</span>
-    {% endif %}
-
-    {% if user.is_admin %}
-        <span class="badge admin">ADMIN</span>
-    {% endif %}
-
-    {% if user.rank == "WINE" %}
-        <span class="badge wine">WINE</span>
-    {% endif %}
-
-    {% if user.rank == "LIQUOR" %}
-        <span class="badge liquor">LIQUOR</span>
-    {% endif %}
-
-    <!-- 🔥 ВОТ ЭТО ДОБАВЬ -->
-    {% for badge in user.badges %}
-        <span class="badge"
-              style="background: {{ badge.color }};">
-            {{ badge.name }}
-        </span>
-    {% endfor %}
-
-</div>
-
-
-</div>
-
-
-    <!-- АВАТАР -->
-    <div style="text-align:center; margin-bottom:20px;">
-        <div onclick="toggleAvatarEdit()" style="cursor:pointer;">
-            {% if user.avatar %}
-                <img src="{{ url_for('static', filename='avatars/' + user.avatar) }}"
-                     width="120" height="120"
-                     style="border-radius:50%; object-fit:cover;">
-            {% else %}
-                <img src="{{ url_for('static', filename='avatars/default_avatar.png') }}"
-                     width="120" height="120"
-                     style="border-radius:50%; object-fit:cover;">
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- СМЕНА АВАТАРА -->
-    {% if user.username == current_user.username %}
-    <form action="{{ url_for('upload_avatar') }}"
-          method="POST"
-          enctype="multipart/form-data"
-          id="avatar-edit"
-          style="text-align:center; margin-bottom:20px; display:none;">
-        <input type="file" name="avatar" required>
-        <button type="submit">Сменить аватар</button>
-    </form>
-    {% endif %}
-
-    <p><strong>ID:</strong> {{ user.id }}</p>
-    <p><strong>Сообщений в чате:</strong> {{ user.messages|length }}</p>
-
-    <hr>
-
-    <!-- КНОПКИ -->
-    <div class="button-group">
-
-        {% if user.username != current_user.username %}
-            <a class="btn"
-               href="{{ url_for('dialog', username=user.username) }}">
-                Написать сообщение
-            </a>
+        {% if user.is_verified %}
+            <span class="badge verified">✔</span>
         {% endif %}
 
-        <a class="btn" href="{{ url_for('chat') }}">В общий чат</a>
+        {% if user.is_admin %}
+            <span class="badge admin">ADMIN</span>
+        {% endif %}
 
-        <a class="btn"
-           href="{{ url_for('profile', username=current_user.username) }}">
-            Мой профиль
-        </a>
+        {% if user.rank == "WINE" %}
+            <span class="badge wine">WINE</span>
+        {% endif %}
 
-        <a class="btn danger"
-           href="{{ url_for('logout') }}">
-            Выйти
-        </a>
+        {% if user.rank == "LIQUOR" %}
+            <span class="badge liquor">LIQUOR</span>
+        {% endif %}
+
+        {% for badge in user.badges %}
+            <span class="badge"
+                  style="background: {{ badge.color }};">
+                {{ badge.name }}
+            </span>
+        {% endfor %}
 
     </div>
 
-    <hr>
+</div>
 
-    <!-- ОПИСАНИЕ -->
-    <div onclick="toggleBioEdit()" style="cursor:pointer;">
-        <h3>Описание</h3>
 
-        {% if user.bio %}
-            <p>{{ user.bio }}</p>
+<!-- АВАТАР -->
+<div style="text-align:center; margin-bottom:20px; position:relative;">
+
+    <div onclick="toggleAvatarEdit()" style="cursor:pointer; display:inline-block; position:relative;">
+
+        {% if user.avatar %}
+            <img src="{{ url_for('static', filename='avatars/' + user.avatar) }}"
+                 width="120" height="120"
+                 style="border-radius:50%; object-fit:cover;">
         {% else %}
-            <p>Пользователь пока ничего не написал.</p>
+            <img src="{{ url_for('static', filename='avatars/default_avatar.png') }}"
+                 width="120" height="120"
+                 style="border-radius:50%; object-fit:cover;">
         {% endif %}
-    </div>
 
-    {% if user.username == current_user.username %}
-    <form action="{{ url_for('update_bio') }}"
-          method="POST"
-          id="bio-edit"
-          style="display:none;">
-        <textarea name="bio"
-                  rows="3"
-                  placeholder="Напишите о себе...">{{ user.bio }}</textarea>
-        <button type="submit">Сохранить описание</button>
-    </form>
+        <!-- Кружок статуса на аватарке -->
+        <span class="avatar-status
+            {% if user.status == 'online' %}avatar-online{% endif %}
+            {% if user.status == 'dnd' %}avatar-dnd{% endif %}
+            {% if user.status == 'invisible' %}avatar-invisible{% endif %}">
+        </span>
+
+    </div>
+</div>
+
+<!-- СМЕНА АВАТАРА -->
+{% if user.username == current_user.username %}
+<form action="{{ url_for('upload_avatar') }}"
+      method="POST"
+      enctype="multipart/form-data"
+      id="avatar-edit"
+      style="text-align:center; margin-bottom:20px; display:none;">
+    <input type="file" name="avatar" required>
+    <button type="submit">Сменить аватар</button>
+</form>
+{% endif %}
+
+<p><strong>ID:</strong> {{ user.id }}</p>
+<p><strong>Сообщений в чате:</strong> {{ user.messages|length }}</p>
+
+{% if user.username == current_user.username %}
+<hr>
+<h3>Статус</h3>
+
+<form action="{{ url_for('set_status') }}" method="POST">
+    <select name="status">
+        <option value="online">🟢 Online</option>
+        <option value="dnd">🔴 Не беспокоить</option>
+        <option value="invisible">⚫ Невидимка</option>
+    </select>
+    <button type="submit">Обновить статус</button>
+</form>
+{% endif %}
+
+<hr>
+
+<!-- КНОПКИ -->
+<div class="button-group">
+
+    {% if user.username != current_user.username %}
+        <a class="btn"
+           href="{{ url_for('dialog', username=user.username) }}">
+            Написать сообщение
+        </a>
     {% endif %}
 
-    <hr>
+    <a class="btn" href="{{ url_for('chat') }}">В общий чат</a>
 
-    <!-- ПРОЧЕЕ -->
-    <div onclick="toggleExtraEdit()" style="cursor:pointer;">
-        <h3>Прочее</h3>
+    <a class="btn"
+       href="{{ url_for('profile', username=current_user.username) }}">
+        Мой профиль
+    </a>
 
-        <div class="profile-extra">
+    <a class="btn danger"
+       href="{{ url_for('logout') }}">
+        Выйти
+    </a>
 
-            {% if user.marital_status %}
-                <p><strong>Семейное положение:</strong> {{ user.marital_status }}</p>
-            {% endif %}
-            {% if user.gender %}
-                <p><strong>Пол:</strong> {{ user.gender }}</p>
-            {% endif %}
-            {% if user.address %}
-                <p><strong>Адрес:</strong> {{ user.address }}</p>
-            {% endif %}
-            {% if user.telegram %}
-                <p><strong>Telegram:</strong> {{ user.telegram }}</p>
-            {% endif %}
-            {% if user.discord %}
-                <p><strong>Discord:</strong> {{ user.discord }}</p>
-            {% endif %}
-            {% if user.email %}
-                <p><strong>Email:</strong> {{ user.email }}</p>
-            {% endif %}
+</div>
 
-        </div>
-    </div>
+<hr>
 
-    {% if user.username == current_user.username %}
-    <form method="POST"
-          action="{{ url_for('update_extra') }}"
-          id="extra-edit"
-          class="extra-form"
-          style="display:none;">
+<!-- ОПИСАНИЕ -->
+<div onclick="toggleBioEdit()" style="cursor:pointer;">
+    <h3>Описание</h3>
 
-        <label>Семейное положение:</label>
-        <select name="marital_status">
-            <option value="">Не указано</option>
-            <option value="Женат">Женат</option>
-            <option value="Не женат">Не женат</option>
-        </select>
-
-        <label>Пол:</label>
-        <select name="gender">
-            <option value="">Не указано</option>
-            <option value="Мужской">Мужской</option>
-            <option value="Средний">Средний</option>
-            <option value="Женский">Женский</option>
-            <option value="Другое">Другое</option>
-        </select>
-
-        <label>Адрес:</label>
-        <input type="text" name="address">
-
-        <label>Telegram:</label>
-        <input type="text" name="telegram">
-
-        <label>Discord:</label>
-        <input type="text" name="discord">
-
-        <label>Email:</label>
-        <input type="email" name="email">
-
-        <button type="submit">Сохранить</button>
-
-    </form>
+    {% if user.bio %}
+        <p>{{ user.bio }}</p>
+    {% else %}
+        <p>Пользователь пока ничего не написал.</p>
     {% endif %}
+</div>
+
+{% if user.username == current_user.username %}
+<form action="{{ url_for('update_bio') }}"
+      method="POST"
+      id="bio-edit"
+      style="display:none;">
+    <textarea name="bio"
+              rows="3"
+              placeholder="Напишите о себе...">{{ user.bio }}</textarea>
+    <button type="submit">Сохранить описание</button>
+</form>
+{% endif %}
+
+<hr>
+
+<!-- ПРОЧЕЕ -->
+<div onclick="toggleExtraEdit()" style="cursor:pointer;">
+    <h3>Прочее</h3>
+
+    <div class="profile-extra">
+
+        {% if user.marital_status %}
+            <p><strong>Семейное положение:</strong> {{ user.marital_status }}</p>
+        {% endif %}
+        {% if user.gender %}
+            <p><strong>Пол:</strong> {{ user.gender }}</p>
+        {% endif %}
+        {% if user.address %}
+            <p><strong>Адрес:</strong> {{ user.address }}</p>
+        {% endif %}
+        {% if user.telegram %}
+            <p><strong>Telegram:</strong> {{ user.telegram }}</p>
+        {% endif %}
+        {% if user.discord %}
+            <p><strong>Discord:</strong> {{ user.discord }}</p>
+        {% endif %}
+        {% if user.email %}
+            <p><strong>Email:</strong> {{ user.email }}</p>
+        {% endif %}
+
+    </div>
+</div>
+
+{% if user.username == current_user.username %}
+<form method="POST"
+      action="{{ url_for('update_extra') }}"
+      id="extra-edit"
+      class="extra-form"
+      style="display:none;">
+
+    <label>Семейное положение:</label>
+    <select name="marital_status">
+        <option value="">Не указано</option>
+        <option value="Женат">Женат</option>
+        <option value="Не женат">Не женат</option>
+    </select>
+
+    <label>Пол:</label>
+    <select name="gender">
+        <option value="">Не указано</option>
+        <option value="Мужской">Мужской</option>
+        <option value="Средний">Средний</option>
+        <option value="Женский">Женский</option>
+        <option value="Другое">Другое</option>
+    </select>
+
+    <label>Адрес:</label>
+    <input type="text" name="address">
+
+    <label>Telegram:</label>
+    <input type="text" name="telegram">
+
+    <label>Discord:</label>
+    <input type="text" name="discord">
+
+    <label>Email:</label>
+    <input type="email" name="email">
+
+    <button type="submit">Сохранить</button>
+
+</form>
+{% endif %}
 
 </div>
 
@@ -212,9 +244,6 @@ function toggleBioEdit(){
     if(el){
         el.style.display = el.style.display === "none" ? "block" : "none";
     }
-
-
-
 }
 
 function toggleExtraEdit(){

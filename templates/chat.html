@@ -1,5 +1,4 @@
 {% extends "layout.html" %}
-
 {% block content %}
 
 <div class="chat-header">
@@ -8,195 +7,251 @@
 
 <div id="chat-box" class="chat-box">
 
-    {% for msg in messages %}
-    <div class="chat-message" data-id="{{ msg.id }}">
-        <div class="message-wrapper">
+{% for msg in messages %}
+<div class="chat-message" data-id="{{ msg.id }}">
+    <div class="message-wrapper">
 
-            <img class="mini-avatar"
-                 src="{{ url_for('static', filename='avatars/' + (msg.user.avatar if msg.user.avatar else 'default_avatar.png')) }}">
+        <img class="mini-avatar"
+             src="{{ url_for('static', filename='avatars/' + (msg.user.avatar if msg.user.avatar else 'default_avatar.png')) }}">
 
-            <div class="chat-content">
-                <strong>
-                    <a class="chat-username"
-                       href="{{ url_for('profile', username=msg.user.username) }}">
-                        {{ msg.user.username }}
-                    </a>
+        <div class="chat-content">
+            <strong>
+                <a class="chat-username"
+                   href="{{ url_for('profile', username=msg.user.username) }}">
+                    {{ msg.user.username }}
+                </a>
+                {% if msg.user.is_verified %}
+                    <span style="color:#5865f2;"> ✔</span>
+                {% endif %}
+            </strong>
 
-                    {% if msg.user.is_verified %}
-                        <span style="color:#5865f2;"> ✔</span>
-                    {% endif %}
+            <div class="message-text">{{ msg.text | safe }}</div>
+            <small>{{ msg.timestamp.strftime("%H:%M") }}</small>
 
-                    {% if msg.is_pinned %}
-                        <span class="pin-icon"> 📌</span>
-                    {% endif %}
-                </strong>
-
-                <div class="message-text">{{ msg.text }}</div>
-                <small>{{ msg.timestamp.strftime("%H:%M") }}</small>
-            </div>
-
-            <!-- КНОПКА -->
-            <button class="action-btn"
-                    type="button"
-                    onclick="togglePanel(this, event)">
-                ⚙
-            </button>
-
-            <!-- ПАНЕЛЬ -->
-            <div class="action-panel">
-                <button type="button"
-                        onclick="deleteMessage({{ msg.id }})">
-                    Удалить
-                </button>
-
-                <button type="button"
-                        onclick="pinMessage({{ msg.id }})">
-                    Закрепить
-                </button>
-
-                <button type="button"
-                        onclick="copyMessage(this)">
-                    Скопировать
-                </button>
-            </div>
-
+            <div class="reactions" id="reactions-{{ msg.id }}"></div>
         </div>
+
+        <!-- Hover buttons -->
+        <div class="message-actions">
+            <button type="button"
+                    onclick="toggleReactionPanel({{ msg.id }}, event)">🙂</button>
+            <button type="button"
+                    onclick="toggleActionPanel(this, event)">⚙</button>
+        </div>
+
+        <!-- Reaction panel (ТОЛЬКО обычные emoji) -->
+        <div class="reaction-panel" id="reaction-panel-{{ msg.id }}">
+            <span onclick="react({{ msg.id }}, '🔥')">🔥</span>
+            <span onclick="react({{ msg.id }}, '😂')">😂</span>
+            <span onclick="react({{ msg.id }}, '👍')">👍</span>
+            <span onclick="react({{ msg.id }}, '❤️')">❤️</span>
+            <span onclick="react({{ msg.id }}, '😎')">😎</span>
+        </div>
+
+        <!-- Settings panel -->
+        <div class="action-panel">
+            <button onclick="editMessage({{ msg.id }})">Редактировать</button>
+            <button onclick="deleteMessage({{ msg.id }})">Удалить</button>
+        </div>
+
     </div>
-    {% endfor %}
+</div>
+{% endfor %}
 
 </div>
 
-<form class="chat-form" onsubmit="sendMessage(event)">
-    <input type="text"
-           id="message-input"
-           placeholder="Написать сообщение..."
-           autocomplete="off"
-           required>
-    <button type="submit">Отправить</button>
-</form>
+<!-- ================= INPUT AREA ================= -->
+
+<div class="chat-input-wrapper">
+
+    <!-- Кнопка кастомных emoji -->
+    <button type="button"
+            class="custom-emoji-btn"
+            onclick="toggleCustomEmojiPanel(event)">
+        😊
+    </button>
+
+    <!-- Кастомная панель -->
+    <div class="custom-emoji-panel" id="customEmojiPanel">
+        {% for emoji in all_emojis %}
+        <div class="custom-emoji-item"
+             onclick="insertCustomEmoji(':emoji:{{ emoji }}:')">
+            <img src="{{ url_for('static', filename='emojis/' + emoji) }}">
+        </div>
+        {% endfor %}
+    </div>
+
+    <form class="chat-form" onsubmit="sendMessage(event)">
+        <input type="text"
+               id="message-input"
+               name="message"
+               placeholder="Написать сообщение..."
+               autocomplete="off"
+               required>
+        <button type="submit">Отправить</button>
+    </form>
+
+</div>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
 <script>
 const socket = io();
-const chatBox = document.getElementById("chat-box");
-
 socket.emit("join_global");
 
-/* ================= RECEIVE ================= */
+/* ================= REALTIME ================= */
 
 socket.on("receive_global_message", function(msg){
+
+    const chatBox = document.getElementById("chat-box");
 
     const wrapper = document.createElement("div");
     wrapper.className = "chat-message";
     wrapper.setAttribute("data-id", msg.id);
 
-    const messageWrapper = document.createElement("div");
-    messageWrapper.className = "message-wrapper";
+    wrapper.innerHTML = `
+        <div class="message-wrapper">
+            <img class="mini-avatar" src="${msg.avatar_url}">
+            <div class="chat-content">
+                <strong>
+                    <a class="chat-username" href="/profile/${msg.username}">
+                        ${msg.username}
+                    </a>
+                    ${msg.is_verified ? '<span style="color:#5865f2;"> ✔</span>' : ''}
+                </strong>
+                <div class="message-text">${msg.text}</div>
+                <small>${msg.time}</small>
+                <div class="reactions" id="reactions-${msg.id}"></div>
+            </div>
 
-    const avatar = document.createElement("img");
-    avatar.className = "mini-avatar";
-    avatar.src = msg.avatar_url;
+            <div class="message-actions">
+                <button onclick="toggleReactionPanel(${msg.id}, event)">🙂</button>
+                <button onclick="toggleActionPanel(this, event)">⚙</button>
+            </div>
 
-    const content = document.createElement("div");
-    content.className = "chat-content";
+            <div class="reaction-panel" id="reaction-panel-${msg.id}">
+                <span onclick="react(${msg.id}, '🔥')">🔥</span>
+                <span onclick="react(${msg.id}, '😂')">😂</span>
+                <span onclick="react(${msg.id}, '👍')">👍</span>
+                <span onclick="react(${msg.id}, '❤️')">❤️</span>
+                <span onclick="react(${msg.id}, '😎')">😎</span>
+            </div>
 
-    const strong = document.createElement("strong");
+            <div class="action-panel">
+                <button onclick="editMessage(${msg.id})">Редактировать</button>
+                <button onclick="deleteMessage(${msg.id})">Удалить</button>
+            </div>
+        </div>
+    `;
 
-    const link = document.createElement("a");
-    link.className = "chat-username";
-    link.href = `/profile/${msg.username}`;
-    link.textContent = msg.username;
-
-    strong.appendChild(link);
-
-    if(msg.is_verified){
-        const verified = document.createElement("span");
-        verified.style.color = "#5865f2";
-        verified.textContent = " ✔";
-        strong.appendChild(verified);
-    }
-
-    if(msg.is_pinned){
-        const pin = document.createElement("span");
-        pin.className = "pin-icon";
-        pin.textContent = " 📌";
-        strong.appendChild(pin);
-    }
-
-    const text = document.createElement("div");
-    text.className = "message-text";
-    text.textContent = msg.text;
-
-    const time = document.createElement("small");
-    time.textContent = `(${msg.time})`;
-
-    content.appendChild(strong);
-    content.appendChild(text);
-    content.appendChild(time);
-
-    const actionBtn = document.createElement("button");
-    actionBtn.className = "action-btn";
-    actionBtn.type = "button";
-    actionBtn.textContent = "⚙";
-    actionBtn.onclick = function(e){
-        togglePanel(actionBtn, e);
-    };
-
-    const panel = document.createElement("div");
-    panel.className = "action-panel";
-
-    const del = document.createElement("button");
-    del.type = "button";
-    del.textContent = "Удалить";
-    del.onclick = () => deleteMessage(msg.id);
-
-    const pinBtn = document.createElement("button");
-    pinBtn.type = "button";
-    pinBtn.textContent = "Закрепить";
-    pinBtn.onclick = () => pinMessage(msg.id);
-
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.textContent = "Скопировать";
-    copy.onclick = () => navigator.clipboard.writeText(msg.text);
-
-    panel.appendChild(del);
-    panel.appendChild(pinBtn);
-    panel.appendChild(copy);
-
-    messageWrapper.appendChild(avatar);
-    messageWrapper.appendChild(content);
-    messageWrapper.appendChild(actionBtn);
-    messageWrapper.appendChild(panel);
-
-    wrapper.appendChild(messageWrapper);
     chatBox.appendChild(wrapper);
-
     chatBox.scrollTop = chatBox.scrollHeight;
 });
 
-/* ================= PANEL ================= */
+/* ================= PANELS ================= */
 
-function togglePanel(btn, event){
-    event.stopPropagation();
-
-    const panel = btn.parentElement.querySelector(".action-panel");
-    const isVisible = panel.style.display === "block";
+document.addEventListener("click", function(){
+    document.querySelectorAll(".reaction-panel")
+        .forEach(p => p.style.display = "none");
 
     document.querySelectorAll(".action-panel")
         .forEach(p => p.style.display = "none");
 
-    if(!isVisible){
+    document.getElementById("customEmojiPanel").style.display = "none";
+});
+
+function toggleReactionPanel(id, event){
+    event.stopPropagation();
+
+    const panel = document.getElementById("reaction-panel-" + id);
+    const visible = panel.style.display === "block";
+
+    document.querySelectorAll(".reaction-panel")
+        .forEach(p => p.style.display = "none");
+
+    if(!visible){
         panel.style.display = "block";
     }
 }
 
-document.addEventListener("click", function(e){
-    if(!e.target.closest(".action-panel") &&
-       !e.target.closest(".action-btn")){
-        document.querySelectorAll(".action-panel")
-            .forEach(p => p.style.display = "none");
+function toggleActionPanel(btn, event){
+    event.stopPropagation();
+
+    const panel = btn.closest(".message-wrapper")
+                     .querySelector(".action-panel");
+
+    const visible = panel.style.display === "block";
+
+    document.querySelectorAll(".action-panel")
+        .forEach(p => p.style.display = "none");
+
+    if(!visible){
+        panel.style.display = "block";
+    }
+}
+
+/* ================= CUSTOM EMOJI ================= */
+
+function toggleCustomEmojiPanel(event){
+    event.stopPropagation();
+    const panel = document.getElementById("customEmojiPanel");
+    panel.style.display =
+        panel.style.display === "block" ? "none" : "block";
+}
+
+function insertCustomEmoji(code){
+    const input = document.getElementById("message-input");
+    input.value += " " + code + " ";
+    input.focus();
+}
+
+/* ================= EDIT ================= */
+
+function editMessage(id){
+    const el = document.querySelector(`[data-id="${id}"]`);
+    if(!el) return;
+
+    const textDiv = el.querySelector(".message-text");
+    const oldText = textDiv.innerText;
+
+    const newText = prompt("Новое сообщение:", oldText);
+    if(!newText || newText.trim() === "") return;
+
+    fetch(`/edit_message/${id}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `text=${encodeURIComponent(newText)}`
+    });
+}
+
+socket.on("message_edited", function(data){
+    const el = document.querySelector(`[data-id="${data.id}"]`);
+    if(!el) return;
+    el.querySelector(".message-text").innerHTML = data.text;
+});
+
+/* ================= REACT ================= */
+
+function react(id, emoji){
+    fetch(`/react/${id}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: `emoji=${emoji}`
+    });
+}
+
+socket.on("reaction_updated", function(data){
+    const container = document.getElementById("reactions-" + data.message_id);
+    if(!container) return;
+
+    container.innerHTML = "";
+
+    for(const emoji in data.reactions){
+        const span = document.createElement("span");
+        span.className = "reaction";
+        span.textContent = emoji + " " + data.reactions[emoji];
+        span.onclick = () => react(data.message_id, emoji);
+        container.appendChild(span);
     }
 });
 
@@ -211,31 +266,6 @@ socket.on("message_deleted", function(data){
     if(el) el.remove();
 });
 
-/* ================= PIN ================= */
-
-function pinMessage(id){
-    fetch(`/pin_message/${id}`, { method: "POST" });
-}
-
-socket.on("message_pinned", function(data){
-    const el = document.querySelector(`[data-id="${data.id}"]`);
-    if(!el) return;
-
-    const strong = el.querySelector("strong");
-
-    if(data.pinned){
-        if(!el.querySelector(".pin-icon")){
-            const pin = document.createElement("span");
-            pin.className = "pin-icon";
-            pin.textContent = " 📌";
-            strong.appendChild(pin);
-        }
-    } else {
-        const pin = el.querySelector(".pin-icon");
-        if(pin) pin.remove();
-    }
-});
-
 /* ================= SEND ================= */
 
 function sendMessage(event){
@@ -243,7 +273,6 @@ function sendMessage(event){
 
     const input = document.getElementById("message-input");
     const text = input.value.trim();
-
     if(text === "") return;
 
     fetch(window.location.pathname, {
@@ -254,7 +283,6 @@ function sendMessage(event){
 
     input.value = "";
 }
-
 </script>
 
 {% endblock %}
